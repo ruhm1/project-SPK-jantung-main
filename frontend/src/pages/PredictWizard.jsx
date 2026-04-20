@@ -1,11 +1,100 @@
 import { useForm, useWatch } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HeartPulse, Send, AlertCircle, Zap, WifiOff, Heart, User, Activity, Droplets, Brain, Stethoscope, ChevronLeft, ChevronRight } from 'lucide-react';
+import { HeartPulse, AlertCircle, Zap, User, Activity, Droplets, Brain, Stethoscope, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import axios from 'axios';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import ResultAnimation from '../components/ResultAnimation.jsx';
+
+const STEPS = [
+  { 
+    id: 0, 
+    title: 'Usia', 
+    field: 'age', 
+    icon: User, 
+    min: { value: 20, message: 'Minimal 20 tahun' }, 
+    max: { value: 100, message: 'Maksimal 100 tahun' },
+    unit: 'tahun',
+    description: 'Masukkan usia Anda (20-100 tahun)',
+    placeholder: '52',
+    type: 'number'
+  },
+  { 
+    id: 1, 
+    title: 'Jenis Kelamin', 
+    field: 'sex', 
+    icon: Activity,
+    description: 'Pilih jenis kelamin',
+    options: [
+      { value: '1', label: 'Laki-laki', icon: Activity, desc: 'Nilai: 1' },
+      { value: '0', label: 'Perempuan', icon: User, desc: 'Nilai: 0' }
+    ],
+    type: 'radio'
+  },
+  { 
+    id: 2, 
+    title: 'Tekanan Darah', 
+    field: 'trestbps', 
+    icon: Droplets, 
+    min: { value: 90, message: 'Minimal 90 mmHg' },
+    max: { value: 250, message: 'Maksimal 250 mmHg' },
+    unit: 'mmHg',
+    description: 'Tekanan darah istirahat (mmHg)',
+    placeholder: '120',
+    type: 'number'
+  },
+  { 
+    id: 3, 
+    title: 'Kolesterol', 
+    field: 'chol', 
+    icon: HeartPulse, 
+    min: { value: 100, message: 'Minimal 100 mg/dl' },
+    max: { value: 600, message: 'Maksimal 600 mg/dl' },
+    unit: 'mg/dl',
+    description: 'Kadar kolesterol serum (mg/dl)',
+    placeholder: '250',
+    type: 'number'
+  },
+  { 
+    id: 4, 
+    title: 'Gula Darah', 
+    field: 'fbs', 
+    icon: Brain,
+    description: 'Gula darah puasa > 120 mg/dl?',
+    options: [
+      { value: '0', label: 'Normal (≤ 120)', icon: Brain },
+      { value: '1', label: 'Tinggi (> 120)', icon: AlertCircle }
+    ],
+    type: 'radio'
+  },
+  { 
+    id: 5, 
+    title: 'Hasil EKG', 
+    field: 'restecg', 
+    icon: Stethoscope,
+    description: 'Elektrokardiogram istirahat:\n• Normal: Hasil EKG normal\n• ST-T Abnormal: Gangguan gelombang ST-T\n• Hipertrofi: Pembesaran ventrikel kiri',
+    options: [
+      { value: '0', label: 'Normal', icon: HeartPulse, desc: 'EKG normal' },
+      { value: '1', label: 'ST-T Abnormal', icon: Activity, desc: 'Gangguan ST-T' },
+      { value: '2', label: 'Hipertrofi', icon: AlertCircle, desc: 'Ventrikel membesar' }
+    ],
+    type: 'radio'
+  },
+  { 
+    id: 6, 
+    title: 'Detak Jantung', 
+    field: 'thalach', 
+    icon: HeartPulse, 
+    min: { value: 70, message: 'Minimal 70 bpm' },
+    max: { value: 220, message: 'Maksimal 220 bpm' },
+    unit: 'bpm',
+    description: 'Maksimum denyut jantung (bpm)',
+    placeholder: '150',
+    type: 'number'
+  }
+];
 
 function PredictWizard() {
-  const { register, handleSubmit, formState: { errors }, control, watch, trigger } = useForm({
+  const formMethods = useForm({
     defaultValues: {
       age: '',
       sex: '',
@@ -14,8 +103,12 @@ function PredictWizard() {
       fbs: '',
       restecg: '',
       thalach: ''
-    }
+    },
+    mode: 'onChange'
   });
+  
+  const { register, handleSubmit, formState, control, watch, trigger, reset } = formMethods;
+  const { errors } = formState;
 
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -24,42 +117,9 @@ function PredictWizard() {
 
   const watchedAge = useWatch({ control, name: 'age' });
   const watchedSex = useWatch({ control, name: 'sex' });
-  const watchedTrestbps = useWatch({ control, name: 'trestbps' });
+  const watchedField = useWatch({ control, name: STEPS[currentStep]?.field });
 
-  const steps = [
-    { id: 0, title: 'Usia', field: 'age', icon: User, min: 20, max: 100, unit: 'tahun' },
-    { id: 1, title: 'Jenis Kelamin', field: 'sex', icon: Activity },
-    { id: 2, title: 'Tekanan Darah', field: 'trestbps', icon: Droplets, min: 90, max: 250, unit: 'mmHg' },
-    { id: 3, title: 'Kolesterol', field: 'chol', icon: HeartPulse, min: 100, max: 600, unit: 'mg/dl' },
-    { id: 4, title: 'Gula Darah', field: 'fbs', icon: Brain },
-    { id: 5, title: 'EKG', field: 'restecg', icon: Stethoscope },
-    { id: 6, title: 'Detak Jantung', field: 'thalach', icon: HeartPulse, min: 70, max: 220, unit: 'bpm' }
-  ];
-
-  const nextStep = async () => {
-    const fieldsValid = await trigger();
-    if (fieldsValid && currentStep < 6) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const prevStep = () => {
-    if (currentStep > 0) setCurrentStep(currentStep - 1);
-  };
-
-  const onSubmit = async (data) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.post('http://localhost:8000/predict', data, { timeout: 10000 });
-      setResult(response.data);
-    } catch (err) {
-      console.error('Prediction error:', err);
-      setError('Backend tidak jalan. Jalankan: cd backend && python -m uvicorn main:app --reload');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const step = STEPS[currentStep];
 
   const getAgeCategory = (age) => {
     const numAge = parseInt(age);
@@ -69,54 +129,91 @@ function PredictWizard() {
     return 'elderly';
   };
 
-  const step = steps[currentStep];
+  // Improved validation check to handle NaN from empty valueAsNumber inputs
+  const isStepValid = !errors[step.field] && 
+                      watchedField !== '' && 
+                      watchedField !== undefined && 
+                      !Number.isNaN(watchedField);
+
+  const nextStep = async () => {
+    const isCurrentFieldValid = await trigger(step.field);
+    if (!isCurrentFieldValid || !isStepValid) return;
+    if (currentStep < 6) setCurrentStep(currentStep + 1);
+  };
+
+  const prevStep = () => currentStep > 0 && setCurrentStep(currentStep - 1);
+
+  const onSubmit = async (data) => {
+    const isFormValid = await trigger();
+    if (!isFormValid) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.post('http://localhost:8000/predict', data, { timeout: 10000 });
+      setResult(response.data);
+    } catch (err) {
+      console.error('Prediction error:', err);
+      setError('Backend tidak jalan. Coba jalankan: cd backend && python -m uvicorn main:app --reload');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (result) {
+      setLoading(false);
+    }
+  }, [result]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 relative overflow-hidden">
-      <div className="max-w-4xl mx-auto px-6 py-16">
+      <div className="max-w-3xl mx-auto px-6 py-12">
         {/* Header */}
         <motion.div 
           initial={{ opacity: 0, y: -50 }} 
           animate={{ opacity: 1, y: 0 }} 
-          className="text-center mb-20"
+          className="text-center mb-16"
         >
-          <div className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 backdrop-blur-xl rounded-3xl border border-emerald-500/40 shadow-heart-glow mb-12">
+          <div className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-emerald-500/30 to-teal-500/30 backdrop-blur-xl rounded-2xl border border-emerald-500/50 shadow-xl mb-8">
             <Zap className="w-8 h-8 text-emerald-400 animate-pulse" />
-            <span className="text-emerald-300 font-mono text-xl uppercase tracking-wider">Step {currentStep + 1} dari 7</span>
+            <span className="text-emerald-300 font-mono text-lg uppercase tracking-wider font-bold">
+              {result ? '✅ Hasil 3D' : `Step ${currentStep + 1} dari 7`}
+            </span>
           </div>
-          <h1 className="text-6xl md:text-7xl font-black bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 bg-clip-text text-transparent mb-6">
-            {step.title}
+          <h1 className="text-4xl md:text-6xl font-black bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 bg-clip-text text-transparent drop-shadow-2xl">
+            {result ? 'Prediksi AI' : step.title}
           </h1>
         </motion.div>
 
         {/* Progress Bar */}
         <motion.div 
-          className="glass-card mb-16 p-8"
+          className="glass-card mb-12 p-6 rounded-2xl shadow-xl"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
         >
           <div className="flex items-center justify-between mb-6">
-            {steps.map((s, index) => (
+            {STEPS.map((s, index) => (
               <motion.div
                 key={s.id}
-                className={`flex flex-col items-center cursor-pointer transition-all p-2 rounded-xl ${index === currentStep ? 'bg-emerald-500/20' : index < currentStep ? 'bg-emerald-400/20 text-emerald-400' : 'text-white/50 hover:text-emerald-300'}`}
+                className={`flex flex-col items-center cursor-pointer p-3 rounded-xl transition-all ${index === currentStep ? 'bg-emerald-500/50 ring-4 ring-emerald-400/60 shadow-lg shadow-emerald-glow scale-105' : index < currentStep ? 'bg-emerald-400/40 text-emerald-300' : 'text-slate-500 hover:text-emerald-300 hover:bg-emerald-500/20 hover:scale-105'}`}
                 onClick={() => setCurrentStep(index)}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
               >
                 <motion.div
                   animate={{ scale: index === currentStep ? 1.3 : 1 }}
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-xl mb-2 border-3 ${index === currentStep ? 'bg-emerald-500 shadow-heart-glow border-emerald-400' : index < currentStep ? 'bg-emerald-400 border-emerald-400/50' : 'bg-white/10 border-white/30'}`}
+                  className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-xl border-2 mb-1 ${index === currentStep ? 'bg-emerald-500 border-emerald-400 shadow-emerald-glow' : index < currentStep ? 'bg-emerald-400 border-emerald-400/70' : 'bg-slate-800/70 border-slate-600/60 hover:border-emerald-400'}`}
                 >
-                  <s.icon className="w-6 h-6" />
+                  <s.icon className={`w-6 h-6 ${index === currentStep ? 'text-white' : index < currentStep ? 'text-emerald-200' : 'text-slate-400 hover:text-emerald-300'}`} />
                 </motion.div>
-                <span className="text-xs font-mono uppercase tracking-wide">{s.id + 1}</span>
+                <span className="text-xs font-mono uppercase tracking-wide font-bold">{s.id + 1}</span>
               </motion.div>
             ))}
           </div>
-          <div className="w-full h-2 bg-white/10 rounded-full">
+          <div className="w-full h-2 bg-slate-900/70 rounded-xl border border-slate-700/50">
             <motion.div 
-              className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 shadow-heart-glow rounded-full"
+              className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 shadow-md rounded-xl"
               initial={{ width: 0 }}
               animate={{ width: `${((currentStep + 1) / 7) * 100}%` }}
               transition={{ duration: 0.6, ease: 'easeOut' }}
@@ -124,137 +221,239 @@ function PredictWizard() {
           </div>
         </motion.div>
 
-        {/* Step Content */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentStep}
-            initial={{ opacity: 0, x: currentStep > 0 ? 50 : -50, scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: currentStep > 0 ? -50 : 50, scale: 0.95 }}
-            transition={{ duration: 0.4, ease: 'easeInOut' }}
-            className="glass-card p-12"
-          >
-            {/* Animated Step Icon */}
-            <motion.div 
-              className="text-center mb-12"
-              animate={{
-                scale: [1, 1.05, 1],
-                rotate: [0, 2, -2, 0]
-              }}
-              transition={{ repeat: Infinity, duration: 3 }}
+        {/* Step Guide */}
+        <motion.div 
+          className="glass-card p-6 md:p-8 rounded-2xl border-emerald-500/30 shadow-2xl mb-12"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 bg-emerald-500/40 rounded-xl flex items-center justify-center border-2 border-emerald-400/70 flex-shrink-0 mt-1">
+              <Info className="w-7 h-7 text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="text-2xl md:text-3xl font-black text-emerald-300 mb-3">{step.title}</h3>
+              <p className="text-base md:text-lg font-semibold text-slate-200 leading-relaxed">{step.description}</p>
+              {step.min && (
+                <div className="mt-4 p-4 bg-slate-900/70 border border-slate-700/60 rounded-xl">
+                  <span className="text-emerald-400 font-mono text-xs uppercase tracking-wide font-bold block mb-1">Rentang:</span>
+                  <span className="text-xl md:text-2xl font-bold text-slate-100">{step.min.value} - {step.max.value} {step.unit}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Content */}
+        {!result ? (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentStep}
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -30 }}
+              transition={{ duration: 0.4 }}
+              className="glass-card p-12 rounded-2xl shadow-3xl border-emerald-500/30"
             >
+              {/* Icon */}
               <motion.div 
-                className={`w-32 h-32 mx-auto rounded-3xl flex items-center justify-center shadow-2xl border-4 ${
-                  currentStep === 0 && getAgeCategory(watchedAge) === 'teen' ? 'bg-gradient-to-r from-blue-500/30 border-blue-400/50 shadow-blue-glow' :
-                  currentStep === 0 && getAgeCategory(watchedAge) === 'adult' ? 'bg-gradient-to-r from-emerald-500/30 border-emerald-400/50 shadow-emerald-glow' :
-                  currentStep === 0 && getAgeCategory(watchedAge) === 'elderly' ? 'bg-gradient-to-r from-orange-500/30 border-orange-400/50 shadow-orange-glow' :
-                  currentStep === 1 && watchedSex === '1' ? 'bg-gradient-to-r from-blue-500/30 border-blue-400/50 shadow-blue-glow' :
-                  currentStep === 1 && watchedSex === '0' ? 'bg-gradient-to-r from-pink-500/30 border-pink-400/50 shadow-pink-glow' :
-                  'bg-white/10 border-white/20 shadow-heart-glow'
-                }`}
+                className="text-center mb-14"
+                animate={{
+                  scale: [1, 1.08, 1],
+                  rotate: [0, 4, -4, 0]
+                }}
+                transition={{ repeat: Infinity, duration: 4 }}
               >
-                {currentStep === 0 ? (
-                  <User className={`w-20 h-20 animate-bounce ${
-                    getAgeCategory(watchedAge) === 'teen' ? 'text-blue-400' :
-                    getAgeCategory(watchedAge) === 'adult' ? 'text-emerald-400' :
-                    'text-orange-400'
-                  }`} />
-                ) : currentStep === 1 ? (
-                  watchedSex === '1' ? <Activity className="w-20 h-20 text-blue-400 animate-pulse" /> : 
-                  watchedSex === '0' ? <User className="w-20 h-20 text-pink-400 animate-pulse" /> :
-                  <Activity className="w-20 h-20 text-white/50" />
-                ) : (
-                  <step.icon className="w-20 h-20 text-emerald-400 animate-pulse" />
-                )}
+                <motion.div 
+                  className={`w-32 h-32 mx-auto rounded-2xl flex items-center justify-center shadow-2xl border-4 shadow-[0_0_40px_rgba(16,185,129,0.4)] ${
+                    currentStep === 0 && getAgeCategory(watchedAge) === 'teen' ? 'bg-gradient-to-r from-blue-500/50 border-blue-400' :
+                    currentStep === 0 && getAgeCategory(watchedAge) === 'adult' ? 'bg-gradient-to-r from-emerald-500/50 border-emerald-400' :
+                    currentStep === 0 && getAgeCategory(watchedAge) === 'elderly' ? 'bg-gradient-to-r from-orange-500/50 border-orange-400' :
+                    currentStep === 1 && watchedSex === '1' ? 'bg-gradient-to-r from-blue-500/50 border-blue-400' :
+                    currentStep === 1 && watchedSex === '0' ? 'bg-gradient-to-r from-pink-500/50 border-pink-400' :
+                    'bg-gradient-to-r from-emerald-500/40 to-teal-500/40 border-emerald-400'
+                  }`}
+                >
+                  {currentStep === 0 ? (
+                    <User className={`w-18 h-18 animate-bounce ${
+                      getAgeCategory(watchedAge) === 'teen' ? 'text-blue-200' :
+                      getAgeCategory(watchedAge) === 'adult' ? 'text-emerald-200' :
+                      'text-orange-200'
+                    }`} />
+                  ) : currentStep === 1 ? (
+                    watchedSex === '1' ? <Activity className="w-18 h-18 text-blue-200 animate-pulse" /> : 
+                    watchedSex === '0' ? <User className="w-18 h-18 text-pink-200 animate-pulse" /> :
+                    <step.icon className="w-18 h-18 text-emerald-200" />
+                  ) : (
+                    <step.icon className="w-18 h-18 text-emerald-200 animate-pulse" />
+                  )}
+                </motion.div>
+              </motion.div>
+
+              {/* Input */}
+              {step.type === 'number' && (
+                <div className="text-center mb-16">
+                  <motion.input 
+                    {...register(step.field, { 
+                      required: `${step.title} wajib diisi`, 
+                      min: step.min, 
+                      max: step.max,
+                      valueAsNumber: true
+                    })} 
+                    type="number" 
+                    placeholder={step.placeholder}
+                    className={`w-full max-w-lg mx-auto block px-12 py-12 text-2xl md:text-3xl font-mono font-bold text-white text-center rounded-2xl transition-all duration-500 shadow-3xl border-4 ${
+                      errors[step.field] 
+                        ? 'border-red-500/80 bg-red-500/20 ring-8 ring-red-500/40 shadow-red-glow-xl hover:shadow-red-glow-2xl' 
+                        : 'border-emerald-400/70 bg-white/10 ring-8 ring-emerald-500/30 shadow-emerald-glow-xl hover:shadow-emerald-glow-2xl hover:border-emerald-500/90 hover:bg-white/20'
+                    }`}
+                  />
+                  {errors[step.field] && (
+                    <motion.div className="mt-8 p-8 bg-red-500/30 border-4 border-red-400/70 rounded-2xl shadow-2xl shadow-red-glow-xl flex items-center gap-4 max-w-2xl mx-auto">
+                      <AlertCircle className="w-12 h-12 text-red-300" />
+                      <span className="text-xl font-bold text-red-100">{errors[step.field].message}</span>
+                    </motion.div>
+                  )}
+                </div>
+              )}
+
+              {step.type === 'radio' && (
+                <div className={`grid ${step.options.length === 2 ? 'md:grid-cols-2' : 'lg:grid-cols-3 md:grid-cols-2'} gap-6 max-w-4xl mx-auto`}>
+                  {step.options.map((option) => {
+                    const isSelected = watch(step.field) === option.value;
+                    return (
+                      <motion.label 
+                        key={option.value}
+                        className={`group cursor-pointer p-8 rounded-2xl border-4 backdrop-blur-xl shadow-2xl hover:shadow-3xl hover:-translate-y-2 transition-all duration-400 ${
+                          isSelected 
+                            ? 'border-emerald-500/90 scale-105 ring-4 ring-emerald-500/60 bg-emerald-500/30 shadow-emerald-glow-xl hover:shadow-emerald-glow-2xl hover:scale-[1.08]' 
+                            : 'border-white/30 hover:border-emerald-500/70 hover:bg-emerald-500/20'
+                        }`}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <input 
+                          type="radio" 
+                          value={option.value} 
+                          {...register(step.field, { required: `${step.title} wajib dipilih` })} 
+                          className="sr-only peer"
+                        />
+                        <option.icon className={`w-16 h-16 mx-auto mb-4 text-emerald-400 group-hover:text-emerald-300 animate-pulse ${isSelected ? 'animate-bounce scale-110 shadow-emerald-glow-lg' : ''}`} />
+                        <h3 className="text-xl md:text-2xl font-bold text-white text-center mb-2 line-clamp-1 drop-shadow-lg">{option.label}</h3>
+                        <p className="text-sm md:text-base text-slate-200 text-center font-mono line-clamp-2">{option.desc}</p>
+                        <div className="mt-6 w-full h-2 bg-white/20 rounded-xl">
+                          <motion.div 
+                            className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-xl shadow-md"
+                            initial={{ width: 0 }}
+                            animate={{ width: isSelected ? '100%' : '0%' }}
+                            transition={{ duration: 0.4 }}
+                          />
+                        </div>
+                      </motion.label>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Navigation */}
+              <motion.div className="flex gap-6 justify-center pt-16">
+                <motion.button 
+                  type="button"
+                  onClick={prevStep}
+                  disabled={currentStep === 0}
+                  className="px-12 py-6 btn-medical-secondary text-base font-bold shadow-2xl disabled:opacity-50 hover:shadow-ecg-glow"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <ChevronLeft className="w-5 h-5 inline mr-2" />
+                  Kembali
+                </motion.button>
+                <motion.button 
+                  type="button"
+                  onClick={currentStep === 6 ? handleSubmit(onSubmit) : nextStep}
+                  disabled={!isStepValid || loading}
+                  className={`px-16 py-6 text-base font-bold shadow-3xl rounded-2xl flex items-center gap-2 transition-all duration-500 uppercase tracking-wide ${
+                    !isStepValid || loading 
+                      ? 'bg-slate-800/50 cursor-not-allowed opacity-60' 
+                      : 'btn-primary hover:shadow-emerald-glow-xl hover:scale-[1.05] bg-gradient-to-r from-emerald-600 to-teal-600'
+                  }`}
+                  whileHover={!isStepValid || loading ? {} : { scale: 1.06 }}
+                  whileTap={!isStepValid || loading ? {} : { scale: 0.96 }}
+                >
+                  {loading ? (
+                    <div className="w-6 h-6 border-3 border-white/30 border-t-emerald-400 rounded-full animate-spin" />
+                  ) : currentStep === 6 ? (
+                    <>
+                      <HeartPulse className="w-5 h-5 animate-pulse" />
+                      Hasil 3D
+                    </>
+                  ) : (
+                    'Lanjut'
+                  )}
+                </motion.button>
               </motion.div>
             </motion.div>
-
-            {/* Input Field */}
-            {step.id === 0 && (
-              <div className="text-center space-y-6">
-                <motion.input 
-                  {...register('age', { required: 'Usia wajib', min: 20, max: 100 })} 
-                  type="number" 
-                  placeholder="52"
-                  className="w-full max-w-lg mx-auto block px-12 py-12 text-4xl font-mono text-white text-center bg-white/10 border-4 border-white/20 rounded-3xl focus:border-emerald-400 focus:ring-8 focus:ring-emerald-500/20 focus:bg-white/20 transition-all duration-300 shadow-2xl hover:shadow-heart-glow"
-                  whileFocus={{ scale: 1.02 }}
-                />
-                {errors.age && <AlertCircle className="w-12 h-12 text-red-400 mx-auto animate-pulse" />}
+          </AnimatePresence>
+        ) : (
+          <div className="relative z-10">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="glass-card p-12 rounded-2xl shadow-3xl max-w-4xl mx-auto"
+            >
+              <div className="text-center mb-12">
+                <h2 className="text-5xl font-black text-emerald-400 mb-8 drop-shadow-2xl">{result.risk}</h2>
+                <div className="w-full h-screen max-h-[70vh] rounded-2xl border-4 border-emerald-500/30 shadow-2xl mb-12 overflow-hidden relative">
+                  <ResultAnimation result={result} />
+                </div>
               </div>
-            )}
-
-            {step.id === 1 && (
-              <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
-                <motion.label className="group cursor-pointer p-8 rounded-3xl border-2 border-white/20 backdrop-blur hover:border-blue-400 hover:bg-blue-500/10 peer-checked:border-blue-400 peer-checked:bg-blue-500/20 peer-checked:shadow-blue-glow peer-checked:scale-105 transition-all duration-300" whileHover={{ scale: 1.02 }}>
-                  <input type="radio" value="1" {...register('sex', { required: true })} className="sr-only peer" />
-                  <Activity className="w-24 h-24 mx-auto mb-6 text-blue-400 animate-pulse peer-checked:animate-bounce" />
-                  <h3 className="text-3xl font-black text-white text-center">Laki-laki</h3>
-                </motion.label>
-                <motion.label className="group cursor-pointer p-8 rounded-3xl border-2 border-white/20 backdrop-blur hover:border-pink-400 hover:bg-pink-500/10 peer-checked:border-pink-400 peer-checked:bg-pink-500/20 peer-checked:shadow-pink-glow peer-checked:scale-105 transition-all duration-300" whileHover={{ scale: 1.02 }}>
-                  <input type="radio" value="0" {...register('sex', { required: true })} className="sr-only peer" />
-                  <User className="w-24 h-24 mx-auto mb-6 text-pink-400 animate-pulse peer-checked:animate-bounce" />
-                  <h3 className="text-3xl font-black text-white text-center">Perempuan</h3>
-                </motion.label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                <div className="p-8 rounded-2xl bg-emerald-500/30 border-4 border-emerald-400 shadow-emerald-glow">
+                  <span className="text-4xl font-black text-emerald-200">{Math.round(result.probability.low * 100)}%</span>
+                  <p className="font-mono uppercase text-emerald-100 mt-2">Risiko Rendah</p>
+                </div>
+                <div className="p-8 rounded-2xl bg-red-500/30 border-4 border-red-400 shadow-red-glow md:col-span-1">
+                  <span className="text-4xl font-black text-red-200">{Math.round(result.probability.high * 100)}%</span>
+                  <p className="font-mono uppercase text-red-100 mt-2">Risiko Tinggi</p>
+                </div>
+                <div className="p-8 rounded-2xl bg-teal-500/30 border-4 border-teal-400 shadow-teal-glow">
+                  <span className="text-4xl font-black text-teal-200">{result.risk}</span>
+                  <p className="font-mono uppercase text-teal-100 mt-2">Kesimpulan</p>
+                </div>
               </div>
-            )}
-
-            {/* Navigation */}
-            <div className="flex gap-6 justify-center pt-20">
-              <motion.button 
-                onClick={prevStep}
-                disabled={currentStep === 0}
-                className="px-12 py-6 btn-medical-secondary text-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+              <div className="p-8 bg-black/50 backdrop-blur border border-emerald-400/50 rounded-2xl mb-12">
+                <p className="text-xl font-semibold text-white text-center">{result.advice}</p>
+              </div>
+              <motion.button
+                onClick={() => {
+                  setResult(null);
+                  setCurrentStep(0);
+                  reset();
+                }}
+                className="w-full btn-primary py-8 px-16 text-xl rounded-2xl"
                 whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.98 }}
               >
-                <ChevronLeft className="w-6 h-6 inline mr-2" />
-                Sebelumnya
+                Prediksi Lagi
               </motion.button>
-              <motion.button 
-                type={currentStep === 6 ? "submit" : "button"}
-                onClick={currentStep === 6 ? undefined : nextStep}
-                disabled={loading}
-                className="px-12 py-6 btn-primary text-xl font-bold shadow-3xl disabled:opacity-50"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                {loading ? (
-                  <>
-                    <div className="w-8 h-8 border-4 border-white/30 border-t-emerald-400 rounded-full animate-spin inline mr-3" />
-                    Memproses...
-                  </>
-                ) : currentStep === 6 ? (
-                  'Prediksi AI'
-                ) : (
-                  <>
-                    Selanjutnya 
-                    <ChevronRight className="w-6 h-6 inline ml-2" />
-                  </>
-                )}
-              </motion.button>
-            </div>
-          </motion.div>
-        </AnimatePresence>
+            </motion.div>
+          </div>
+        )}
 
-        {result && (
+        {error && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="glass-card p-12 mt-16 text-center"
+            className="glass-card p-12 mt-16 text-center rounded-2xl shadow-2xl"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
           >
-            <HeartPulse className="w-32 h-32 mx-auto mb-8 text-emerald-400 animate-pulse shadow-emerald-glow" />
-            <h2 className="text-5xl font-black text-emerald-400 mb-8">Risiko {result.risk}</h2>
-            <div className="grid grid-cols-2 gap-8 max-w-2xl mx-auto">
-              <div className="p-8 rounded-3xl bg-emerald-500/20 border-emerald-400/50">
-                <span className="text-5xl font-black text-emerald-300">{Math.round(result.probability.low * 100)}%</span>
-                <p className="font-mono uppercase text-emerald-200">Rendah</p>
-              </div>
-              <div className="p-8 rounded-3xl bg-red-500/20 border-red-400/50">
-                <span className="text-5xl font-black text-red-300">{Math.round(result.probability.high * 100)}%</span>
-                <p className="font-mono uppercase text-red-200">Tinggi</p>
-              </div>
-            </div>
-            <p className="text-xl mt-8 px-8 py-6 bg-black/40 backdrop-blur border border-white/30 rounded-3xl font-semibold">{result.advice}</p>
+            <AlertCircle className="w-24 h-24 text-red-400 mx-auto mb-8 animate-pulse shadow-red-glow" />
+            <p className="text-2xl font-bold text-red-300 mb-8">{error}</p>
+            <motion.button 
+              onClick={() => setError(null)}
+              className="btn-medical-secondary px-16 py-8 text-lg"
+              whileHover={{ scale: 1.05 }}
+            >
+              Coba Lagi
+            </motion.button>
           </motion.div>
         )}
       </div>
@@ -263,4 +462,3 @@ function PredictWizard() {
 }
 
 export default PredictWizard;
-

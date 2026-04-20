@@ -11,95 +11,149 @@ const DynamicBg = () => {
     const ctx = canvas.getContext('2d');
     let animationFrameId;
     let particles = [];
-    const particleCount = 120;
+    const particleCount = 80;
     const mouse = mousePosRef.current;
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    // Medical theme colors: red(heartbeat), green(safe), blue(clinical), subtle purple
+    // Enhanced medical-futuristic theme
     const medicalHues = [
-      { h: 0, s: 70, l: 60 },   // Red heartbeat
-      { h: 160, s: 70, l: 45 }, // Green safe
-      { h: 210, s: 80, l: 55 }, // Blue clinical
-      { h: 280, s: 60, l: 50 }  // Purple medical
+      { h: 0, s: 80, l: 55 },   // Heartbeat red
+      { h: 160, s: 75, l: 40 }, // ECG green  
+      { h: 200, s: 85, l: 50 }, // Clinical cyan
+      { h: 280, s: 65, l: 45 }, // Medical purple
+      { h: 340, s: 70, l: 60 }  // Vital pink
     ];
 
-    // Create particles with medical theme
+    // Particles array
     for (let i = 0; i < particleCount; i++) {
       const hueData = medicalHues[Math.floor(Math.random() * medicalHues.length)];
       particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.8,
-        vy: (Math.random() - 0.5) * 0.8,
-        radius: Math.random() * 3 + 1,
-        baseAlpha: Math.random() * 0.4 + 0.3,
-        alpha: Math.random() * 0.4 + 0.3,
+        vx: (Math.random() - 0.5) * 1.2,
+        vy: (Math.random() - 0.5) * 1.2,
+        radius: Math.random() * 4 + 1.5,
+        alpha: Math.random() * 0.5 + 0.2,
         hue: hueData.h,
         sat: hueData.s,
         light: hueData.l,
-        pulsePhase: Math.random() * Math.PI * 2, // For heartbeat effect
-        isECG: Math.random() > 0.7, // 30% ECG wave particles
-        waveOffset: Math.random() * 100
+        pulsePhase: Math.random() * Math.PI * 2,
+        trail: [], // Particle trail
+        isECG: Math.random() > 0.6,
+        wavePhase: Math.random() * Math.PI * 2,
+        connectionDist: 120 + Math.random() * 60
       });
     }
 
     const animate = () => {
-      // Dark medical background with subtle clinical gradient
+      // Futuristic medical gradient background
       const gradientBg = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-      gradientBg.addColorStop(0, 'rgba(15, 23, 42, 0.95)');  // Dark slate
-      gradientBg.addColorStop(0.5, 'rgba(30, 41, 59, 0.98)'); // Clinical blue-gray
-      gradientBg.addColorStop(1, 'rgba(15, 23, 42, 0.95)');
+      gradientBg.addColorStop(0, '#0a0e1a');
+      gradientBg.addColorStop(0.3, 'rgba(6, 20, 35, 0.98)');
+      gradientBg.addColorStop(0.7, 'rgba(15, 41, 68, 0.98)');
+      gradientBg.addColorStop(1, '#0a0e1a');
+      
       ctx.fillStyle = gradientBg;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      particles.forEach(p => {
-        // Physics with gentle medical float
+      // Subtle grid overlay
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.08)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 80) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 80) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      // Update & draw particles with trails
+      particles.forEach((p, i) => {
+        // Store trail
+        p.trail.push({ x: p.x, y: p.y });
+        if (p.trail.length > 20) p.trail.shift();
+
+        // Physics
         p.x += p.vx;
         p.y += p.vy;
-        p.vy += 0.02; // Gentle gravity for organic feel
+        p.vy += 0.015;
 
-        // Boundary bounce
-        if (p.x < 0 || p.x > canvas.width) p.vx *= -0.8;
+        // Boundary
+        if (p.x < 0 || p.x > canvas.width) p.vx *= -0.9;
         if (p.y < 0 || p.y > canvas.height) {
-          p.vy *= -0.6;
-          p.y = p.y < 0 ? 0 : canvas.height;
+          p.vy *= -0.7;
+          p.y = Math.max(0, Math.min(canvas.height, p.y));
         }
 
-        // Mouse attraction (doctor's cursor interaction)
+        // Mouse interaction (futuristic scanner)
         const dx = mouse.x - p.x;
         const dy = mouse.y - p.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 200) {
-          p.vx += dx / dist * 0.3;
-          p.vy += dy / dist * 0.3;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 150) {
+          p.vx += (dx / dist) * 0.5;
+          p.vy += (dy / dist) * 0.5;
+          p.alpha = Math.min(0.9, p.alpha + 0.05);
         }
 
-        // Heartbeat pulse effect
-        p.pulsePhase += 0.08;
-        const pulse = Math.sin(p.pulsePhase) * 0.3 + 1;
-        p.radius = (p.radius * 0.98) + (1.5 * pulse * 0.02); // Gentle breathing
+        // Heartbeat
+        p.pulsePhase += 0.1;
+        p.radius = 2 + Math.sin(p.pulsePhase) * 1.2;
 
-        // ECG wave effect for special particles
+        // ECG wave
         if (p.isECG) {
-          p.waveOffset += 2;
-          p.alpha = 0.6 + Math.sin(p.waveOffset * 0.1) * 0.2;
+          p.wavePhase += 0.15;
+          p.vy -= Math.sin(p.wavePhase) * 0.1;
         }
 
-        // Color variation
-        p.hue = (p.hue + 0.2) % 360;
-        p.light += (50 + Math.sin(Date.now() * 0.001 + p.x) * 5 - p.light) * 0.05;
+        // Connections (reduced - performance)
+        if (Math.random() < 0.3) {
+          particles.slice(i+1, i+5).forEach((p2) => {
+            const pdist = Math.hypot(p.x - p2.x, p.y - p2.y);
+            if (pdist < 100) {
+              ctx.strokeStyle = 'rgba(16, 185, 129, 0.08)';
+              ctx.lineWidth = 0.5;
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+            }
+          });
+        }
 
-        // Draw particle with glow
-        const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius * 3);
-        gradient.addColorStop(0, `hsla(${p.hue}, ${p.sat}%, ${p.light}%, ${p.alpha})`);
-        gradient.addColorStop(0.4, `hsla(${p.hue}, ${p.sat-20}%, ${p.light+10}%, ${p.alpha * 0.6})`);
+        // Particle glow trail
+        if (p.trail.length > 12) p.trail.shift();
+        p.trail.forEach((point, i) => {
+          const trailAlpha = p.alpha * (i / p.trail.length);
+          const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, 4);
+          gradient.addColorStop(0, `hsla(${p.hue}, 80%, 55%, ${trailAlpha})`);
+          gradient.addColorStop(1, 'transparent');
+          
+          ctx.save();
+          ctx.shadowColor = `hsla(${p.hue}, 80%, 55%, 0.8)`;
+          ctx.shadowBlur = 10 + i * 0.5;
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        });
+
+        // Main particle
+        const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius * 4);
+        gradient.addColorStop(0, `hsla(${p.hue}, 85%, 60%, ${p.alpha})`);
+        gradient.addColorStop(0.6, `hsla(${p.hue}, 80%, 55%, ${p.alpha * 0.3})`);
         gradient.addColorStop(1, 'transparent');
         
         ctx.save();
-        ctx.shadowColor = `hsla(${p.hue}, ${p.sat}%, 50%, 0.8)`;
-        ctx.shadowBlur = 15;
+        ctx.shadowColor = `hsla(${p.hue}, 85%, 60%, 1)`;
+        ctx.shadowBlur = 20;
         ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius * 2.5, 0, Math.PI * 2);
@@ -107,25 +161,42 @@ const DynamicBg = () => {
         ctx.restore();
       });
 
-      // Draw subtle ECG lines occasionally
-      if (Math.random() < 0.1) {
-        ctx.strokeStyle = 'rgba(16, 185, 129, 0.3)';
-        ctx.lineWidth = 1;
+      // Dynamic ECG scan lines
+      const time = Date.now() * 0.001;
+      for (let i = 0; i < 3; i++) {
+        const y = 100 + i * canvas.height / 4;
+        ctx.strokeStyle = `rgba(16, 185, 129, ${0.3 + Math.sin(time + i) * 0.2})`;
+        ctx.lineWidth = 2;
         ctx.lineCap = 'round';
+        ctx.shadowColor = '#10b981';
+        ctx.shadowBlur = 10;
+        
         ctx.beginPath();
-        ctx.moveTo(100 + Math.random() * (canvas.width - 200), canvas.height * 0.7);
-        for (let i = 0; i < 10; i++) {
-          ctx.lineTo(100 + i * 50 + Math.sin(i) * 20, canvas.height * 0.7 + Math.sin(i * 0.5) * 15);
+        ctx.moveTo(0, y);
+        for (let x = 0; x < canvas.width; x += 20) {
+          const wave = Math.sin((x * 0.01) + time + i) * 8;
+          ctx.lineTo(x, y + wave);
         }
         ctx.stroke();
       }
+
+      // Holographic scan line
+      const scanY = (time * 50) % canvas.height;
+      const scanGradient = ctx.createLinearGradient(0, scanY - 50, 0, scanY + 50);
+      scanGradient.addColorStop(0, 'transparent');
+      scanGradient.addColorStop(0.4, 'rgba(16, 185, 129, 0.1)');
+      scanGradient.addColorStop(0.5, 'rgba(16, 185, 129, 0.3)');
+      scanGradient.addColorStop(0.6, 'rgba(16, 185, 129, 0.1)');
+      scanGradient.addColorStop(1, 'transparent');
+      
+      ctx.fillStyle = scanGradient;
+      ctx.fillRect(0, scanY - 2, canvas.width, 4);
 
       animationFrameId = requestAnimationFrame(animate);
     };
 
     animate();
 
-    // Resize handler
     const handleResize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;

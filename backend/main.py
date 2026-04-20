@@ -10,7 +10,7 @@ app = FastAPI(title='SPK Jantung API')
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,8 +25,12 @@ class PredictInput(BaseModel):
     restecg: float
     thalach: float
 
-# Load model
-model = joblib.load('model.joblib')
+# Load model with error handling
+try:
+    model = joblib.load('model.joblib')
+except Exception as e:
+    print(f"Error loading model: {e}")
+    model = None
 
 @app.get('/')
 def read_root():
@@ -34,6 +38,8 @@ def read_root():
 
 @app.post('/predict')
 def predict(input_data: PredictInput):
+    if model is None:
+        raise HTTPException(status_code=500, detail="Model not loaded")
     features = np.array([[input_data.age, input_data.sex, input_data.trestbps, input_data.chol,
                           input_data.fbs, input_data.restecg, input_data.thalach]])
     pred = model.predict(features)[0]

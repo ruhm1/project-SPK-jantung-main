@@ -7,11 +7,29 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-gradient-to-br from-blue-950 via-slate-900/90 to-indigo-950 overflow-x-hidden antialiased text-white leading-relaxed;
+    @apply bg-[rgba(4,8,18,1)] overflow-x-hidden antialiased text-white leading-relaxed font-[Inter,'SF_Pro'];
     background-image: 
-      radial-gradient(circle at 20% 80%, rgba(239, 68, 68, 0.12) 0%, transparent 50%), 
-      radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.12) 0%, transparent 50%), 
-      radial-gradient(circle at 40% 40%, rgba(59, 130, 246, 0.1) 0%, transparent 50%);
+      radial-gradient(circle at 20% 10%, rgba(16,185,129,0.15) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, rgba(239,68,68,0.12) 0%, transparent 50%),
+      radial-gradient(circle at 40% 80%, rgba(59,130,246,0.1) 0%, transparent 50%),
+      radial-gradient(circle at 90% 70%, rgba(168,85,247,0.08) 0%, transparent 50%);
+  }
+  
+  .shadow-medical-glow {
+    box-shadow: 
+      0 0 20px rgba(16,185,129,0.4),
+      0 0 40px rgba(16,185,129,0.2),
+      0 25px 50px rgba(0,0,0,0.6),
+      inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+  
+  .shadow-heartbeat-glow {
+    box-shadow: 
+      0 0 30px rgba(239,68,68,0.6),
+      0 0 60px rgba(239,68,68,0.3),
+      0 0 90px rgba(239,68,68,0.1),
+      0 25px 50px rgba(0,0,0,0.7);
+    animation: heartbeat-glow 2s infinite;
   }
 }
 
